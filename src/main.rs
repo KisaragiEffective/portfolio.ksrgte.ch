@@ -5,10 +5,29 @@ use actix_web::web::{JsonConfig};
 use actix_files::NamedFile;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
-use anyhow::{anyhow, bail, Context, Result as AnyHowResult};
+use anyhow::{anyhow, bail, Context, Error, Result as AnyHowResult};
+use log::{trace, warn, info};
 
 async fn favicon() -> StdIoResult<NamedFile> {
     NamedFile::open("static/favicon.ico")
+}
+
+fn setup_logger() -> Result<(), fern::InitError> {
+    fern::Dispatch::new()
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "{}[{}][{}] {}",
+                chrono::Local::now().format("[%Y-%m-%d][%H:%M:%S]"),
+                record.target(),
+                record.level(),
+                message
+            ))
+        })
+        .level(log::LevelFilter::Debug)
+        .chain(std::io::stdout())
+        .chain(fern::log_file("output.log")?)
+        .apply()?;
+    Ok(())
 }
 
 async fn index(req: HttpRequest) -> HttpResponse {
@@ -19,10 +38,10 @@ async fn index(req: HttpRequest) -> HttpResponse {
 }
 
 fn load_certification_files() -> AnyHowResult<ServerConfig> {
-    println!("loading cert.pem");
+    trace!("loading cert.pem");
     let cert_file = &mut BufReader::new(File::open("cert.pem").context("cert.pem was not found")?);
     let cert_chain = certs(cert_file).unwrap().iter().map(|a| Certificate(a.clone())).collect();
-    println!("loading key.pem");
+    trace!("loading key.pem");
     let key_file = &mut BufReader::new(File::open("key.pem").context("key.pem was not found")?);
     let mut keys = pkcs8_private_keys(key_file).unwrap().iter().map(|x| PrivateKey(x.clone())).collect::<Vec<_>>();
     if keys.is_empty() {
@@ -37,12 +56,18 @@ fn load_certification_files() -> AnyHowResult<ServerConfig> {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    println!("starting");
-    // load SSL keys
-    let mut config = load_certification_files();
+    match setup_logger().context("failed to setup logger") {
+        Ok(a) => {}
+        Err(web) => {
+            eprintln!("failed to initialize logger: {:?}", web);
+        }
+    }
 
-    println!("Reading config...");
-    println!("building HttpServer");
+    trace!("starting");
+    // load SSL keys
+    trace!("Reading config...");
+    let mut config = load_certification_files();
+    trace!("building HttpServer");
     let mut http_server = HttpServer::new(|| {
         App::new()
             .service(web::resource("/index.html").to(index))
@@ -52,24 +77,27 @@ async fn main() -> std::io::Result<()> {
                     .finish()
             })))
     });
-    println!("https");
+    trace!("binding https port");
     // it is not required to enable https
     match config {
         Ok(cert_config) => {
             http_server = http_server.bind_rustls("127.0.0.1:443", cert_config)?;
         }
         Err(error) => {
-            eprintln!("{:?}", error)
+            warn!("{:?}", error)
         }
     }
 
-    println!("http");
+    trace!("binding http port");
+    let http_server = http_server
+        .bind("127.0.0.1:80")?;
+
+    info!("running server...");
+
     http_server
-        .bind("127.0.0.1:80")?
         .run()
         .await;
-
-    println!("stopped");
+    trace!("stopped");
     Ok(())
 }
 
