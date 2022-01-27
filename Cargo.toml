@@ -12,5 +12,5 @@ rustls = "0.20"
 rustls-pemfile = "0.2"
 anyhow = "1.0"
 log = "0.4"
-fern = "0.6"
+fern = { version = "0.6", features = [ "colored" ] }
 chrono = "0.4"
