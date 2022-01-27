@@ -1,13 +1,22 @@
-use std::fs;
 use std::fs::File;
-use std::io::BufReader;
-use std::sync::Arc;
-use actix_web::{App, guard, HttpResponse, HttpServer, web, Result};
-use actix_web::web::JsonConfig;
+use std::io::{BufReader, Result as StdIoResult};
+use actix_web::{App, HttpResponse, HttpServer, web, error, HttpRequest};
+use actix_web::web::{JsonConfig};
+use actix_files::NamedFile;
+use rustls::{Certificate, PrivateKey, ServerConfig};
+use rustls_pemfile::{certs, pkcs8_private_keys};
 
-async fn favicon() -> Result<actix_files::NamedFile> {
-    Ok(fs::NamedFile::open("static/favicon.ico"))
+async fn favicon() -> StdIoResult<NamedFile> {
+    NamedFile::open("static/favicon.ico")
 }
+
+async fn index(req: HttpRequest) -> HttpResponse {
+    println!("{:?}", req);
+    HttpResponse::Ok()
+        .content_type("text/html; charset=utf-8")
+        .body("<!DOCTYPE html><html><body><p>Welcome!</p></body></html>")
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     println!("starting");
@@ -33,13 +42,12 @@ async fn main() -> std::io::Result<()> {
     println!("building HttpServer");
     let mut http_server = HttpServer::new(|| {
         App::new()
-            .app_data(
-                JsonConfig::default().error_handler(json_error_handler)
-            )
-            .service(
-                web::resource("/")
-
-            )
+            .service(web::resource("/index.html").to(index))
+            .service(web::resource("/").route(web::get().to(|| {
+                HttpResponse::Found()
+                    .header("LOCATION", "/index.html")
+                    .finish()
+            })))
     });
     println!("binding ports");
     http_server
