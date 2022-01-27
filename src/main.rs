@@ -59,6 +59,11 @@ fn load_certification_files() -> AnyHowResult<ServerConfig> {
         .with_single_cert(cert_chain, keys.remove(0)).context("failed in with_single_cert ?!?!")
 }
 
+const HTTP_PORT: u16 = 11552;
+const HTTPS_PORT: u16 = 44300;
+static HOST: &'static str = "127.0.0.1";
+
+// TODO: redirect http to https
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     match setup_logger().context("failed to setup logger") {
@@ -86,7 +91,7 @@ async fn main() -> std::io::Result<()> {
     // it is not required to enable https
     match config {
         Ok(cert_config) => {
-            http_server = http_server.bind_rustls("127.0.0.1:443", cert_config)?;
+            http_server = http_server.bind_rustls(format!("{}:{}", HOST, HTTPS_PORT), cert_config)?;
         }
         Err(error) => {
             warn!("{:?}", error)
@@ -95,7 +100,7 @@ async fn main() -> std::io::Result<()> {
 
     trace!("binding http port");
     let http_server = http_server
-        .bind("127.0.0.1:80")?;
+        .bind(format!("{}:{}", HOST, HTTP_PORT))?;
 
     info!("running server...");
 
