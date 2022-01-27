@@ -14,9 +14,7 @@ async fn favicon() -> StdIoResult<NamedFile> {
 
 fn setup_logger() -> Result<(), fern::InitError> {
     use fern::colors::*;
-    let mut colors = ColoredLevelConfig::new()
-        .warn(Color::BrightYellow)
-        .error(Color::Red);
+    let mut colors = ColoredLevelConfig::new();
 
     fern::Dispatch::new()
         .format(move |out, message, record| {
