@@ -37,7 +37,7 @@ async fn index(req: HttpRequest) -> HttpResponse {
     println!("{:?}", req);
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
-        .body("<!DOCTYPE html><html><body><p>Welcome!</p></body></html>")
+        .body(include_str!("../static/index.html"))
 }
 
 fn load_certification_files() -> AnyHowResult<ServerConfig> {
